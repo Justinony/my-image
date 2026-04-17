@@ -221,6 +221,8 @@ const getPreviewUrl = (cat, item) => {
   const previewConfig = { ...config.value, [cat]: item }
   
   for (const [key, val] of Object.entries(previewConfig)) {
+    // Only append backgroundColor if it's NOT the backgroundColor category itself
+    if (key === 'backgroundColor' && cat !== 'backgroundColor') continue;
     if (val !== 'none' && val !== undefined && val !== null && val !== '') url += `&${key}=${val}`
   }
 
