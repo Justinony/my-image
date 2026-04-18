@@ -133,9 +133,9 @@
       const withVersion = (url) => url + "?v=" + buildVersion;
       const loaderUrl = withVersion(buildUrl + "/unity-game.loader.js");
       const config = {
-        dataUrl: withVersion(buildUrl + "/unity-game.data"),
-        frameworkUrl: withVersion(buildUrl + "/unity-game.framework.js"),
-        codeUrl: withVersion(buildUrl + "/unity-game.wasm"),
+        dataUrl: withVersion(buildUrl + "/unity-game.data.br"),
+        frameworkUrl: withVersion(buildUrl + "/unity-game.framework.js.br"),
+        codeUrl: withVersion(buildUrl + "/unity-game.wasm.br"),
         streamingAssetsUrl: "/unity-game/StreamingAssets",
         companyName: "DefaultCompany-" + buildVersion,
         productName: "Lesson9-" + buildVersion,

@@ -1,0 +1,14 @@
+/unity-game/Build/*.framework.js.br
+  Content-Type: application/javascript
+  Content-Encoding: br
+  Cache-Control: no-store
+
+/unity-game/Build/*.wasm.br
+  Content-Type: application/wasm
+  Content-Encoding: br
+  Cache-Control: no-store
+
+/unity-game/Build/*.data.br
+  Content-Type: application/octet-stream
+  Content-Encoding: br
+  Cache-Control: no-store
