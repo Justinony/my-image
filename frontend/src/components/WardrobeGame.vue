@@ -118,6 +118,7 @@
 <script setup>
 import { computed, ref, onMounted, onUnmounted } from 'vue'
 import { supabase } from '../supabase'
+import { getUnityShellUrl } from '../unity-config'
 
 const emit = defineEmits(['close'])
 
@@ -136,7 +137,7 @@ const message = ref('')
 const wallet = ref({ coins: 0, diamonds: 0 })
 const refreshingWallet = ref(false)
 const isMobileMode = ref(detectMobileMode())
-const unityShellSrc = computed(() => `/unity-shell.html?mobile=${isMobileMode.value ? '1' : '0'}`)
+const unityShellSrc = computed(() => getUnityShellUrl(isMobileMode.value))
 const joystickBase = ref(null)
 const joystickThumbOffset = ref({ x: 0, y: 0 })
 const joystickPointerId = ref(null)
@@ -252,9 +253,17 @@ const onUnityIframeLoaded = () => {
   // Check if it actually loaded the unity game or a 404 page
   try {
     if (unityFrame.value && unityFrame.value.contentDocument) {
-      const title = unityFrame.value.contentDocument.title;
+      const title = unityFrame.value.contentDocument.title
+      if (title && title !== 'Unity Game Shell') {
+        unityLoadingError.value = true
+        showMessage('Unity 壳页面没有正确加载，请刷新后重试')
+        return
+      }
+
       if (title.includes("Error") || title.includes("404")) {
-        unityLoadingError.value = true;
+        unityLoadingError.value = true
+        showMessage('Unity 页面加载失败，请刷新后重试')
+        return
       }
     }
   } catch (e) {

@@ -1,10 +1,11 @@
 <script setup>
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, onUnmounted } from 'vue'
 import axios from 'axios'
 import JSZip from 'jszip'
 import { saveAs } from 'file-saver'
 import confetti from 'canvas-confetti'
 import { supabase } from './supabase'
+import { UNITY_WARMUP_URLS } from './unity-config'
 
 import AuthModal from './components/AuthModal.vue'
 import WardrobeGame from './components/WardrobeGame.vue'
@@ -15,6 +16,59 @@ const isDragging = ref(false)
 const showAuthModal = ref(false)
 const showWardrobeGame = ref(false)
 const isWardrobeLoading = ref(false)
+const unityWarmupStarted = ref(false)
+
+let unityWarmupTimer = null
+let unityWarmupController = null
+
+const clearUnityWarmupTimer = () => {
+  if (unityWarmupTimer === null) return
+
+  if (typeof cancelIdleCallback === 'function') {
+    cancelIdleCallback(unityWarmupTimer)
+  } else {
+    clearTimeout(unityWarmupTimer)
+  }
+
+  unityWarmupTimer = null
+}
+
+const startUnityWarmup = () => {
+  if (unityWarmupStarted.value || typeof window === 'undefined') return
+
+  const connection = navigator.connection || navigator.mozConnection || navigator.webkitConnection
+  if (connection?.saveData) return
+
+  unityWarmupStarted.value = true
+  unityWarmupController = new AbortController()
+
+  for (const url of UNITY_WARMUP_URLS) {
+    fetch(url, {
+      credentials: 'same-origin',
+      cache: 'force-cache',
+      signal: unityWarmupController.signal
+    }).catch(() => {})
+  }
+}
+
+const scheduleUnityWarmup = () => {
+  if (unityWarmupStarted.value || typeof window === 'undefined') return
+
+  clearUnityWarmupTimer()
+
+  const runWarmup = () => {
+    unityWarmupTimer = null
+    if (!isWelcomeScreen.value && !showAuthModal.value && !showWardrobeGame.value) {
+      startUnityWarmup()
+    }
+  }
+
+  if (typeof requestIdleCallback === 'function') {
+    unityWarmupTimer = requestIdleCallback(runWarmup, { timeout: 2000 })
+  } else {
+    unityWarmupTimer = window.setTimeout(runWarmup, 1200)
+  }
+}
 
 const handleOpenMagicDoor = async () => {
   const savedUser = localStorage.getItem('zz_wardrobe_username')
@@ -47,9 +101,11 @@ const handleOpenMagicDoor = async () => {
 const handleGlobalLogin = (username) => {
   showAuthModal.value = false
   isWelcomeScreen.value = false
+  scheduleUnityWarmup()
 }
 
 const openWardrobe = () => {
+  startUnityWarmup()
   showWardrobeGame.value = true
 }
 
@@ -539,6 +595,17 @@ const prevPreview = () => {
 const nextPreview = () => {
   if (currentPreviewIndex.value < files.value.length - 1) currentPreviewIndex.value++
 }
+
+watch([isWelcomeScreen, showAuthModal], ([welcomeScreenVisible, authModalVisible]) => {
+  if (!welcomeScreenVisible && !authModalVisible) {
+    scheduleUnityWarmup()
+  }
+})
+
+onUnmounted(() => {
+  clearUnityWarmupTimer()
+  unityWarmupController?.abort()
+})
 </script>
 
 <template>
@@ -598,6 +665,8 @@ const nextPreview = () => {
           <!-- Magic Wardrobe Portal -->
           <button 
             @click="openWardrobe" 
+            @mouseenter="scheduleUnityWarmup"
+            @touchstart.passive="scheduleUnityWarmup"
             class="px-2 sm:px-4 py-1 sm:py-2 bg-gradient-to-r from-pink-400 to-purple-400 text-white text-[10px] sm:text-sm font-bold rounded-full shadow-md hover:scale-105 transition-all flex items-center shrink-0 active:scale-95"
           >
             <span class="mr-1 hidden sm:inline">👑</span>魔法衣橱
