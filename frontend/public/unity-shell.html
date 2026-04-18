@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, shrink-to-fit=yes" />
+    <title>Unity Game Shell</title>
+    <style>
+      html, body {
+        margin: 0;
+        padding: 0;
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+        background: #000;
+        font-family: Arial, sans-serif;
+      }
+      #unity-container {
+        position: fixed;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+      }
+      #unity-canvas {
+        width: 100%;
+        height: 100%;
+        background: #231f20;
+      }
+      #unity-loading-bar {
+        position: absolute;
+        left: 50%;
+        top: 50%;
+        transform: translate(-50%, -50%);
+        display: none;
+        text-align: center;
+      }
+      #unity-logo {
+        width: 154px;
+        height: 130px;
+        margin: 0 auto 18px auto;
+        background: url("/unity-game/TemplateData/unity-logo-dark.png") no-repeat center;
+        background-size: contain;
+      }
+      #unity-progress-bar-empty {
+        width: 280px;
+        height: 18px;
+        border: 1px solid rgba(255,255,255,.35);
+        background: rgba(255,255,255,.08);
+        overflow: hidden;
+        margin: 0 auto;
+      }
+      #unity-progress-bar-full {
+        width: 0%;
+        height: 100%;
+        background: #fff;
+      }
+      #unity-progress-text {
+        margin-top: 12px;
+        color: #fff;
+        font-size: 14px;
+      }
+      #unity-warning {
+        position: absolute;
+        left: 50%;
+        top: 20px;
+        transform: translateX(-50%);
+        z-index: 20;
+        max-width: min(92vw, 760px);
+      }
+      .unity-banner {
+        margin-bottom: 8px;
+        padding: 12px 14px;
+        border-radius: 12px;
+        box-shadow: 0 10px 25px rgba(0, 0, 0, .35);
+        white-space: pre-wrap;
+        word-break: break-word;
+      }
+      .unity-banner.error {
+        background: #ef4444;
+        color: #fff;
+      }
+      .unity-banner.warning {
+        background: #facc15;
+        color: #111827;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="unity-container">
+      <canvas id="unity-canvas" tabindex="-1"></canvas>
+      <div id="unity-loading-bar">
+        <div id="unity-logo"></div>
+        <div id="unity-progress-bar-empty">
+          <div id="unity-progress-bar-full"></div>
+        </div>
+        <div id="unity-progress-text">加载中 0%</div>
+      </div>
+      <div id="unity-warning"></div>
+    </div>
+
+    <script>
+      const container = document.querySelector("#unity-container");
+      const canvas = document.querySelector("#unity-canvas");
+      const loadingBar = document.querySelector("#unity-loading-bar");
+      const progressBarFull = document.querySelector("#unity-progress-bar-full");
+      const progressText = document.querySelector("#unity-progress-text");
+      const warningBanner = document.querySelector("#unity-warning");
+
+      function unityShowBanner(msg, type) {
+        const div = document.createElement("div");
+        div.className = "unity-banner " + (type || "warning");
+        div.textContent = msg;
+        warningBanner.appendChild(div);
+        if (type !== "error") {
+          setTimeout(() => {
+            if (div.parentNode) div.parentNode.removeChild(div);
+          }, 5000);
+        }
+      }
+
+      // #region debug-point A:bootstrap
+      fetch("http://127.0.0.1:7777/event",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({sessionId:"unity-webgl-runtime",runId:"shell",hypothesisId:"A",location:"unity-shell.html:bootstrap",msg:"[DEBUG] Unity shell bootstrap start",data:{href:location.href,userAgent:navigator.userAgent},ts:Date.now()})}).catch(()=>{});
+      // #endregion
+
+      window.addEventListener("error", (event) => {
+        // #region debug-point D:window-error
+        fetch("http://127.0.0.1:7777/event",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({sessionId:"unity-webgl-runtime",runId:"shell",hypothesisId:"D",location:"unity-shell.html:window-error",msg:"[DEBUG] window error",data:{message:event.message||"",filename:event.filename||"",lineno:event.lineno||0,colno:event.colno||0,stack:(event.error&&event.error.stack)||""},ts:Date.now()})}).catch(()=>{});
+        // #endregion
+        unityShowBanner("页面错误: " + (event.message || "unknown error"), "error");
+        console.error(event.error || event.message);
+      });
+
+      window.addEventListener("unhandledrejection", (event) => {
+        const reason = event.reason && (event.reason.message || event.reason.toString()) || "unknown promise rejection";
+        // #region debug-point C:promise-error
+        fetch("http://127.0.0.1:7777/event",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({sessionId:"unity-webgl-runtime",runId:"shell",hypothesisId:"C",location:"unity-shell.html:unhandledrejection",msg:"[DEBUG] promise rejection",data:{reason:reason,stack:(event.reason&&event.reason.stack)||""},ts:Date.now()})}).catch(()=>{});
+        // #endregion
+        unityShowBanner("Promise 错误: " + reason, "error");
+        console.error(event.reason);
+      });
+
+      const buildUrl = "/unity-game/Build";
+      const buildVersion = "dev-" + Date.now();
+      const withVersion = (url) => url + "?v=" + buildVersion;
+      const loaderUrl = withVersion(buildUrl + "/unity-game.loader.js");
+      const config = {
+        dataUrl: withVersion(buildUrl + "/unity-game.data.br"),
+        frameworkUrl: withVersion(buildUrl + "/unity-game.framework.js.br"),
+        codeUrl: withVersion(buildUrl + "/unity-game.wasm.br"),
+        streamingAssetsUrl: "/unity-game/StreamingAssets",
+        companyName: "DefaultCompany-" + buildVersion,
+        productName: "Lesson9-" + buildVersion,
+        productVersion: buildVersion,
+        showBanner: unityShowBanner,
+        cacheControl: function () {
+          return "no-store";
+        },
+      };
+
+      async function clearUnityIndexedDB() {
+        if (!("indexedDB" in window)) return;
+        try {
+          if (indexedDB.databases) {
+            const dbs = await indexedDB.databases();
+            await Promise.all((dbs || [])
+              .filter(db => db && db.name && /(unity|cache|lesson9|defaultcompany)/i.test(db.name))
+              .map(db => new Promise((resolve) => {
+                const req = indexedDB.deleteDatabase(db.name);
+                req.onsuccess = req.onerror = req.onblocked = () => resolve();
+              })));
+          } else {
+            ["UnityCache", "DefaultCompany", "Lesson9"].forEach((name) => {
+              try { indexedDB.deleteDatabase(name); } catch (e) {}
+            });
+          }
+        } catch (e) {
+          console.warn("Clear IndexedDB failed", e);
+        }
+      }
+
+      async function startUnity() {
+        loadingBar.style.display = "block";
+        await clearUnityIndexedDB();
+
+        const script = document.createElement("script");
+        script.src = loaderUrl;
+        // #region debug-point A:loader-script
+        fetch("http://127.0.0.1:7777/event",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({sessionId:"unity-webgl-runtime",runId:"shell",hypothesisId:"A",location:"unity-shell.html:loader-script",msg:"[DEBUG] inject loader",data:{loaderUrl:loaderUrl,dataUrl:config.dataUrl,frameworkUrl:config.frameworkUrl,codeUrl:config.codeUrl},ts:Date.now()})}).catch(()=>{});
+        // #endregion
+        script.onload = () => {
+          // #region debug-point A:create-instance
+          fetch("http://127.0.0.1:7777/event",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({sessionId:"unity-webgl-runtime",runId:"shell",hypothesisId:"A",location:"unity-shell.html:create-instance",msg:"[DEBUG] loader ready createUnityInstance",data:{hasParentBridge:!!(window.parent&&window.parent.VueBridge)},ts:Date.now()})}).catch(()=>{});
+          // #endregion
+          createUnityInstance(canvas, config, (progress) => {
+            progressBarFull.style.width = (100 * progress) + "%";
+            progressText.textContent = "加载中 " + Math.round(progress * 100) + "%";
+            // #region debug-point A:progress
+            if(progress===1||progress===0||progress>0.25&&progress<0.26||progress>0.5&&progress<0.51||progress>0.75&&progress<0.76)fetch("http://127.0.0.1:7777/event",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({sessionId:"unity-webgl-runtime",runId:"shell",hypothesisId:"A",location:"unity-shell.html:progress",msg:"[DEBUG] unity loading progress",data:{progress:progress},ts:Date.now()})}).catch(()=>{});
+            // #endregion
+          }).then((unityInstance) => {
+            loadingBar.style.display = "none";
+            window.unityInstance = unityInstance;
+            // #region debug-point B:instance-ready
+            fetch("http://127.0.0.1:7777/event",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({sessionId:"unity-webgl-runtime",runId:"shell",hypothesisId:"B",location:"unity-shell.html:instance-ready",msg:"[DEBUG] unity instance ready",data:{hasParentBridge:!!(window.parent&&window.parent.VueBridge),hasUnityInstance:!!window.unityInstance},ts:Date.now()})}).catch(()=>{});
+            // #endregion
+          }).catch((message) => {
+            // #region debug-point C:create-instance-error
+            fetch("http://127.0.0.1:7777/event",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({sessionId:"unity-webgl-runtime",runId:"shell",hypothesisId:"C",location:"unity-shell.html:create-instance-error",msg:"[DEBUG] createUnityInstance rejected",data:{message:String(message)},ts:Date.now()})}).catch(()=>{});
+            // #endregion
+            unityShowBanner(String(message), "error");
+            console.error(message);
+          });
+        };
+        script.onerror = () => {
+          unityShowBanner("Unity Loader 加载失败: " + loaderUrl, "error");
+        };
+        document.body.appendChild(script);
+      }
+
+      startUnity();
+    </script>
+  </body>
+</html>
