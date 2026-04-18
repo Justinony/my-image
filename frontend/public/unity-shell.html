@@ -104,6 +104,9 @@
       const progressBarFull = document.querySelector("#unity-progress-bar-full");
       const progressText = document.querySelector("#unity-progress-text");
       const warningBanner = document.querySelector("#unity-warning");
+      const searchParams = new URLSearchParams(window.location.search);
+      const isMobileShell = searchParams.get("mobile") === "1" ||
+        /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
 
       function unityShowBanner(msg, type) {
         const div = document.createElement("div");
@@ -129,22 +132,37 @@
       });
 
       const buildUrl = "/unity-game/Build";
-      const buildVersion = "dev-" + Date.now();
-      const withVersion = (url) => url + "?v=" + buildVersion;
+      // Bump this version after each new Unity WebGL build to invalidate old caches.
+      const buildVersion = searchParams.get("v") || "2026-04-18-1";
+      const buildVersionStorageKey = "unity-shell-build-version";
+      const forceRefresh = searchParams.get("clearCache") === "1";
+      const withVersion = (url) => url + "?v=" + encodeURIComponent(buildVersion);
       const loaderUrl = withVersion(buildUrl + "/unity-game.loader.js");
       const config = {
         dataUrl: withVersion(buildUrl + "/unity-game.data.br"),
         frameworkUrl: withVersion(buildUrl + "/unity-game.framework.js.br"),
         codeUrl: withVersion(buildUrl + "/unity-game.wasm.br"),
         streamingAssetsUrl: "/unity-game/StreamingAssets",
-        companyName: "DefaultCompany-" + buildVersion,
+        companyName: "DefaultCompany",
         productName: "Lesson9-" + buildVersion,
         productVersion: buildVersion,
         showBanner: unityShowBanner,
-        cacheControl: function () {
-          return "no-store";
+        cacheControl: function (url) {
+          if (url.match(/\.(data|bundle|json)(\.br)?$/)) {
+            return "must-revalidate";
+          }
+
+          if (url.match(/\.(wasm|js)(\.br)?$/)) {
+            return "immutable";
+          }
+
+          return "must-revalidate";
         },
       };
+
+      if (isMobileShell) {
+        config.devicePixelRatio = 1;
+      }
 
       async function clearUnityIndexedDB() {
         if (!("indexedDB" in window)) return;
@@ -167,9 +185,32 @@
         }
       }
 
+      async function syncUnityBuildCache() {
+        if (forceRefresh) {
+          await clearUnityIndexedDB();
+          try {
+            localStorage.setItem(buildVersionStorageKey, buildVersion);
+          } catch (e) {}
+          return;
+        }
+
+        try {
+          const cachedBuildVersion = localStorage.getItem(buildVersionStorageKey);
+          if (cachedBuildVersion === buildVersion) {
+            return;
+          }
+        } catch (e) {}
+
+        await clearUnityIndexedDB();
+
+        try {
+          localStorage.setItem(buildVersionStorageKey, buildVersion);
+        } catch (e) {}
+      }
+
       async function startUnity() {
         loadingBar.style.display = "block";
-        await clearUnityIndexedDB();
+        await syncUnityBuildCache();
 
         const script = document.createElement("script");
         script.src = loaderUrl;
@@ -180,6 +221,9 @@
           }).then((unityInstance) => {
             loadingBar.style.display = "none";
             window.unityInstance = unityInstance;
+            if (window.parent) {
+              window.parent.postMessage({ type: "unity-ready" }, "*");
+            }
           }).catch((message) => {
             unityShowBanner(String(message), "error");
             console.error(message);

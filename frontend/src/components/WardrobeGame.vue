@@ -2,7 +2,7 @@
   <div class="fixed inset-0 z-[200] bg-black animate-fade-in">
     <iframe
       ref="unityFrame"
-      src="/unity-shell.html"
+      :src="unityShellSrc"
       class="absolute inset-0 h-full w-full border-0"
       allow="autoplay; fullscreen"
       v-show="!unityLoadingError"
@@ -56,6 +56,55 @@
       </div>
     </div>
 
+    <div
+      v-if="isMobileMode"
+      class="pointer-events-none absolute inset-x-0 bottom-0 z-30 select-none"
+      style="padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 1rem);"
+    >
+      <div class="mb-2 text-center text-xs font-bold text-white/70">
+        手机模式：左手移动，右手交互
+      </div>
+
+      <div class="flex items-end justify-between px-4">
+        <div class="pointer-events-auto">
+          <div
+            ref="joystickBase"
+            class="mobile-joystick relative h-32 w-32 rounded-full border border-white/20 bg-black/30 backdrop-blur-md"
+            @pointerdown.prevent="startJoystick"
+            @pointermove.prevent="moveJoystick"
+            @pointerup.prevent="endJoystick"
+            @pointercancel.prevent="endJoystick"
+          >
+            <div class="absolute inset-4 rounded-full border border-white/10"></div>
+            <div class="mobile-joystick-thumb absolute left-1/2 top-1/2 h-14 w-14 rounded-full bg-white/80 shadow-xl" :style="joystickThumbStyle"></div>
+          </div>
+        </div>
+
+        <div class="pointer-events-auto flex flex-col items-end gap-3">
+          <button
+            class="mobile-action-button h-14 min-w-[5rem] rounded-full bg-pink-500/90 px-5 text-sm font-black text-white shadow-xl"
+            @pointerdown.prevent="triggerMobileAction('TriggerMobileInteract')"
+          >
+            交互
+          </button>
+          <div class="flex items-center gap-3">
+            <button
+              class="mobile-action-button h-12 min-w-[4.5rem] rounded-full bg-cyan-500/85 px-4 text-sm font-black text-white shadow-xl"
+              @pointerdown.prevent="triggerMobileAction('TriggerMobileInteractAlternate')"
+            >
+              动作
+            </button>
+            <button
+              class="mobile-action-button h-12 min-w-[4.5rem] rounded-full bg-white/20 px-4 text-sm font-black text-white shadow-xl backdrop-blur"
+              @pointerdown.prevent="triggerMobileAction('TriggerMobilePause')"
+            >
+              暂停
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <div class="pointer-events-none absolute inset-x-0 top-20 z-20 flex justify-center px-4">
       <transition name="bounce">
         <div v-if="message" class="rounded-full border-2 border-pink-300 bg-white/92 px-6 py-3 font-black text-pink-500 shadow-xl backdrop-blur">
@@ -67,14 +116,35 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted } from 'vue'
+import { computed, ref, onMounted, onUnmounted } from 'vue'
 import { supabase } from '../supabase'
 
 const emit = defineEmits(['close'])
 
+const detectMobileMode = () => {
+  if (typeof window === 'undefined') return false
+
+  const userAgent = navigator.userAgent || ''
+  const isIOS = /iPhone|iPad|iPod/i.test(userAgent) || (/Mac/i.test(userAgent) && navigator.maxTouchPoints > 1)
+  const isTouchDevice = navigator.maxTouchPoints > 0 || 'ontouchstart' in window
+  const isSmallScreen = Math.min(window.innerWidth, window.innerHeight) <= 1024
+
+  return isIOS || (isTouchDevice && isSmallScreen)
+}
+
 const message = ref('')
 const wallet = ref({ coins: 0, diamonds: 0 })
 const refreshingWallet = ref(false)
+const isMobileMode = ref(detectMobileMode())
+const unityShellSrc = computed(() => `/unity-shell.html?mobile=${isMobileMode.value ? '1' : '0'}`)
+const joystickBase = ref(null)
+const joystickThumbOffset = ref({ x: 0, y: 0 })
+const joystickPointerId = ref(null)
+let mobileModeAnnounced = false
+
+const joystickThumbStyle = computed(() => ({
+  transform: `translate(calc(-50% + ${joystickThumbOffset.value.x}px), calc(-50% + ${joystickThumbOffset.value.y}px))`
+}))
 
 const showMessage = (msg) => {
   message.value = msg
@@ -155,10 +225,27 @@ const unityLoadingError = ref(false)
 const unityFrame = ref(null)
 let unityLoadingTimeout = null
 
+const getUnityInstance = () => {
+  return unityFrame.value?.contentWindow?.unityInstance || null
+}
+
+const sendUnityMessage = (method, payload = '') => {
+  const unityInstance = getUnityInstance()
+  if (!unityInstance) return false
+
+  unityInstance.SendMessage('GameInput', method, payload)
+  return true
+}
+
+const syncMobileModeToUnity = () => {
+  sendUnityMessage('SetMobileMode', isMobileMode.value ? '1' : '0')
+}
+
 const syncMoneyToUnity = () => {
-  if (unityFrame.value && unityFrame.value.contentWindow && unityFrame.value.contentWindow.unityInstance) {
-    unityFrame.value.contentWindow.unityInstance.SendMessage('VueBridge', 'SetMoney', wallet.value.coins.toString())
-  }
+  const unityInstance = getUnityInstance()
+  if (!unityInstance) return
+
+  unityInstance.SendMessage('VueBridge', 'SetMoney', wallet.value.coins.toString())
 }
 
 const onUnityIframeLoaded = () => {
@@ -181,8 +268,86 @@ const onUnityIframeLoaded = () => {
   }, 30000)
 }
 
+const resetJoystick = () => {
+  joystickPointerId.value = null
+  joystickThumbOffset.value = { x: 0, y: 0 }
+  sendUnityMessage('SetMobileMove', '0,0')
+}
+
+const updateJoystick = (clientX, clientY) => {
+  if (!joystickBase.value) return
+
+  const rect = joystickBase.value.getBoundingClientRect()
+  const centerX = rect.left + rect.width / 2
+  const centerY = rect.top + rect.height / 2
+  const maxDistance = rect.width * 0.32
+
+  let offsetX = clientX - centerX
+  let offsetY = clientY - centerY
+  const distance = Math.hypot(offsetX, offsetY)
+
+  if (distance > maxDistance && distance > 0) {
+    const scale = maxDistance / distance
+    offsetX *= scale
+    offsetY *= scale
+  }
+
+  joystickThumbOffset.value = {
+    x: Math.round(offsetX),
+    y: Math.round(offsetY)
+  }
+
+  const normalizedX = offsetX / maxDistance
+  const normalizedY = -offsetY / maxDistance
+  sendUnityMessage('SetMobileMove', `${normalizedX.toFixed(3)},${normalizedY.toFixed(3)}`)
+}
+
+const startJoystick = (event) => {
+  if (!isMobileMode.value) return
+
+  joystickPointerId.value = event.pointerId
+  event.currentTarget.setPointerCapture?.(event.pointerId)
+  syncMobileModeToUnity()
+  updateJoystick(event.clientX, event.clientY)
+}
+
+const moveJoystick = (event) => {
+  if (joystickPointerId.value !== event.pointerId) return
+
+  updateJoystick(event.clientX, event.clientY)
+}
+
+const endJoystick = (event) => {
+  if (joystickPointerId.value !== null && joystickPointerId.value !== event.pointerId) return
+
+  event.currentTarget.releasePointerCapture?.(event.pointerId)
+  resetJoystick()
+}
+
+const triggerMobileAction = (method) => {
+  syncMobileModeToUnity()
+  sendUnityMessage(method, 'tap')
+}
+
+const handleUnityMessage = (event) => {
+  if (event.source !== unityFrame.value?.contentWindow) return
+
+  if (event.data?.type === 'unity-ready') {
+    clearTimeout(unityLoadingTimeout)
+    syncMobileModeToUnity()
+    syncMoneyToUnity()
+
+    if (isMobileMode.value && !mobileModeAnnounced) {
+      mobileModeAnnounced = true
+      showMessage('手机触控已启用')
+    }
+  }
+}
+
 // 建立与 Unity 的通信桥梁
 onMounted(() => {
+  window.addEventListener('message', handleUnityMessage)
+
   window.VueBridge = {
     syncMoney: (amount) => {
       // Unity 可能会同步钱，但在我们的架构里 Vue 才是主数据源
@@ -211,6 +376,8 @@ onMounted(() => {
 
 onUnmounted(() => {
   clearTimeout(unityLoadingTimeout)
+  window.removeEventListener('message', handleUnityMessage)
+  resetJoystick()
   if (window.VueBridge) {
     delete window.VueBridge
   }
@@ -236,6 +403,16 @@ onUnmounted(() => {
   0% { transform: scale(0); opacity: 0; }
   50% { transform: scale(1.1); opacity: 1; }
   100% { transform: scale(1); opacity: 1; }
+}
+
+.mobile-joystick,
+.mobile-action-button {
+  touch-action: none;
+}
+
+.mobile-joystick-thumb {
+  margin-left: -28px;
+  margin-top: -28px;
 }
 
 </style>
