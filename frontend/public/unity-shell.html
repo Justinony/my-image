@@ -117,23 +117,13 @@
         }
       }
 
-      // #region debug-point A:bootstrap
-      fetch("http://127.0.0.1:7777/event",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({sessionId:"unity-webgl-runtime",runId:"shell",hypothesisId:"A",location:"unity-shell.html:bootstrap",msg:"[DEBUG] Unity shell bootstrap start",data:{href:location.href,userAgent:navigator.userAgent},ts:Date.now()})}).catch(()=>{});
-      // #endregion
-
       window.addEventListener("error", (event) => {
-        // #region debug-point D:window-error
-        fetch("http://127.0.0.1:7777/event",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({sessionId:"unity-webgl-runtime",runId:"shell",hypothesisId:"D",location:"unity-shell.html:window-error",msg:"[DEBUG] window error",data:{message:event.message||"",filename:event.filename||"",lineno:event.lineno||0,colno:event.colno||0,stack:(event.error&&event.error.stack)||""},ts:Date.now()})}).catch(()=>{});
-        // #endregion
         unityShowBanner("页面错误: " + (event.message || "unknown error"), "error");
         console.error(event.error || event.message);
       });
 
       window.addEventListener("unhandledrejection", (event) => {
         const reason = event.reason && (event.reason.message || event.reason.toString()) || "unknown promise rejection";
-        // #region debug-point C:promise-error
-        fetch("http://127.0.0.1:7777/event",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({sessionId:"unity-webgl-runtime",runId:"shell",hypothesisId:"C",location:"unity-shell.html:unhandledrejection",msg:"[DEBUG] promise rejection",data:{reason:reason,stack:(event.reason&&event.reason.stack)||""},ts:Date.now()})}).catch(()=>{});
-        // #endregion
         unityShowBanner("Promise 错误: " + reason, "error");
         console.error(event.reason);
       });
@@ -183,29 +173,14 @@
 
         const script = document.createElement("script");
         script.src = loaderUrl;
-        // #region debug-point A:loader-script
-        fetch("http://127.0.0.1:7777/event",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({sessionId:"unity-webgl-runtime",runId:"shell",hypothesisId:"A",location:"unity-shell.html:loader-script",msg:"[DEBUG] inject loader",data:{loaderUrl:loaderUrl,dataUrl:config.dataUrl,frameworkUrl:config.frameworkUrl,codeUrl:config.codeUrl},ts:Date.now()})}).catch(()=>{});
-        // #endregion
         script.onload = () => {
-          // #region debug-point A:create-instance
-          fetch("http://127.0.0.1:7777/event",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({sessionId:"unity-webgl-runtime",runId:"shell",hypothesisId:"A",location:"unity-shell.html:create-instance",msg:"[DEBUG] loader ready createUnityInstance",data:{hasParentBridge:!!(window.parent&&window.parent.VueBridge)},ts:Date.now()})}).catch(()=>{});
-          // #endregion
           createUnityInstance(canvas, config, (progress) => {
             progressBarFull.style.width = (100 * progress) + "%";
             progressText.textContent = "加载中 " + Math.round(progress * 100) + "%";
-            // #region debug-point A:progress
-            if(progress===1||progress===0||progress>0.25&&progress<0.26||progress>0.5&&progress<0.51||progress>0.75&&progress<0.76)fetch("http://127.0.0.1:7777/event",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({sessionId:"unity-webgl-runtime",runId:"shell",hypothesisId:"A",location:"unity-shell.html:progress",msg:"[DEBUG] unity loading progress",data:{progress:progress},ts:Date.now()})}).catch(()=>{});
-            // #endregion
           }).then((unityInstance) => {
             loadingBar.style.display = "none";
             window.unityInstance = unityInstance;
-            // #region debug-point B:instance-ready
-            fetch("http://127.0.0.1:7777/event",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({sessionId:"unity-webgl-runtime",runId:"shell",hypothesisId:"B",location:"unity-shell.html:instance-ready",msg:"[DEBUG] unity instance ready",data:{hasParentBridge:!!(window.parent&&window.parent.VueBridge),hasUnityInstance:!!window.unityInstance},ts:Date.now()})}).catch(()=>{});
-            // #endregion
           }).catch((message) => {
-            // #region debug-point C:create-instance-error
-            fetch("http://127.0.0.1:7777/event",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({sessionId:"unity-webgl-runtime",runId:"shell",hypothesisId:"C",location:"unity-shell.html:create-instance-error",msg:"[DEBUG] createUnityInstance rejected",data:{message:String(message)},ts:Date.now()})}).catch(()=>{});
-            // #endregion
             unityShowBanner(String(message), "error");
             console.error(message);
           });
