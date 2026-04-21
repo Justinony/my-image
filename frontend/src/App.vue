@@ -5,7 +5,7 @@ import JSZip from 'jszip'
 import { saveAs } from 'file-saver'
 import confetti from 'canvas-confetti'
 import { supabase } from './supabase'
-import { UNITY_WARMUP_URLS } from './unity-config'
+import { getUnityWarmupUrls } from './unity-config'
 
 import AuthModal from './components/AuthModal.vue'
 import WardrobeGame from './components/WardrobeGame.vue'
@@ -33,7 +33,7 @@ const clearUnityWarmupTimer = () => {
   unityWarmupTimer = null
 }
 
-const startUnityWarmup = () => {
+const startUnityWarmup = async () => {
   if (unityWarmupStarted.value || typeof window === 'undefined') return
 
   const connection = navigator.connection || navigator.mozConnection || navigator.webkitConnection
@@ -42,12 +42,17 @@ const startUnityWarmup = () => {
   unityWarmupStarted.value = true
   unityWarmupController = new AbortController()
 
-  for (const url of UNITY_WARMUP_URLS) {
-    fetch(url, {
-      credentials: 'same-origin',
-      cache: 'force-cache',
-      signal: unityWarmupController.signal
-    }).catch(() => {})
+  try {
+    const urls = await getUnityWarmupUrls()
+    for (const url of urls) {
+      fetch(url, {
+        credentials: 'same-origin',
+        cache: 'force-cache',
+        signal: unityWarmupController.signal
+      }).catch(() => {})
+    }
+  } catch (e) {
+    // Warmup is best-effort; ignore failures.
   }
 }
 
@@ -104,13 +109,100 @@ const handleGlobalLogin = (username) => {
   scheduleUnityWarmup()
 }
 
+const requestFullscreen = async () => {
+  const el = document.documentElement
+  const anyEl = /** @type {any} */ (el)
+
+  if (document.fullscreenElement) return true
+
+  try {
+    if (el.requestFullscreen) {
+      await el.requestFullscreen({ navigationUI: 'hide' })
+      // Best-effort orientation lock (works on some Android browsers).
+      try {
+        if (screen?.orientation?.lock) {
+          await screen.orientation.lock('landscape')
+        }
+      } catch (e) {}
+      return true
+    }
+    if (anyEl.webkitRequestFullscreen) {
+      anyEl.webkitRequestFullscreen()
+      try {
+        if (screen?.orientation?.lock) {
+          await screen.orientation.lock('landscape')
+        }
+      } catch (e) {}
+      return true
+    }
+    if (anyEl.mozRequestFullScreen) {
+      anyEl.mozRequestFullScreen()
+      try {
+        if (screen?.orientation?.lock) {
+          await screen.orientation.lock('landscape')
+        }
+      } catch (e) {}
+      return true
+    }
+    if (anyEl.msRequestFullscreen) {
+      anyEl.msRequestFullscreen()
+      try {
+        if (screen?.orientation?.lock) {
+          await screen.orientation.lock('landscape')
+        }
+      } catch (e) {}
+      return true
+    }
+  } catch (e) {
+    // Fullscreen API can fail on iOS or when not allowed by the browser.
+    return false
+  }
+
+  return false
+}
+
+const exitFullscreen = async () => {
+  const anyDoc = /** @type {any} */ (document)
+
+  try {
+    try {
+      if (screen?.orientation?.unlock) {
+        screen.orientation.unlock()
+      }
+    } catch (e) {}
+
+    if (document.fullscreenElement && document.exitFullscreen) {
+      await document.exitFullscreen()
+      return
+    }
+    if (anyDoc.webkitFullscreenElement && anyDoc.webkitExitFullscreen) {
+      anyDoc.webkitExitFullscreen()
+      return
+    }
+    if (anyDoc.mozFullScreenElement && anyDoc.mozCancelFullScreen) {
+      anyDoc.mozCancelFullScreen()
+      return
+    }
+    if (anyDoc.msFullscreenElement && anyDoc.msExitFullscreen) {
+      anyDoc.msExitFullscreen()
+      return
+    }
+  } catch (e) {
+    // ignore
+  }
+}
+
 const openWardrobe = () => {
+  // Always show the game overlay first, then try fullscreen.
+  // This avoids a bad UX where the browser enters fullscreen but the game overlay is delayed or blocked.
   startUnityWarmup()
   showWardrobeGame.value = true
+  requestFullscreen()
 }
 
 const handleWardrobeClose = () => {
   showWardrobeGame.value = false
+  exitFullscreen()
 }
 
 const logout = () => {
@@ -616,14 +708,16 @@ onUnmounted(() => {
       @close="showAuthModal = false" 
       @login-success="handleGlobalLogin" 
     />
-    <WardrobeGame 
-      v-if="showWardrobeGame" 
-      @close="handleWardrobeClose" 
-    />
+    <KeepAlive>
+      <WardrobeGame 
+        v-if="showWardrobeGame" 
+        @close="handleWardrobeClose" 
+      />
+    </KeepAlive>
 
     <!-- Welcome Screen -->
     <transition name="welcome-fade">
-      <div v-if="isWelcomeScreen" class="absolute inset-0 z-[100] flex flex-col items-center justify-center bg-white/80 backdrop-blur-xl transition-colors duration-500">
+      <div v-if="isWelcomeScreen" class="fixed inset-0 z-[100] flex h-[100dvh] w-full flex-col items-center justify-center bg-white/80 backdrop-blur-xl transition-colors duration-500">
         <div class="text-7xl sm:text-8xl animate-bounce-slow mb-6 sm:mb-8">{{ t.icon }}</div>
         <h1 class="text-3xl sm:text-5xl md:text-6xl font-black mb-3 sm:mb-4 text-center px-4 drop-shadow-sm" :class="t.text">zz 小宝宝专属工坊 ✨</h1>
         <p class="text-base sm:text-lg md:text-xl text-gray-500 font-bold mb-8 sm:mb-12 text-center px-4">最可爱、最简单的图片处理魔法 🪄</p>

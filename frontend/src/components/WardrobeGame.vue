@@ -19,88 +19,30 @@
       </p>
     </div>
 
-    <div class="pointer-events-none absolute inset-x-0 top-0 z-20 p-3 sm:p-4">
-      <div class="mx-auto flex max-w-7xl items-center justify-between gap-3 rounded-2xl border border-white/20 bg-black/45 px-4 py-3 text-white shadow-2xl backdrop-blur-md">
-        <div class="min-w-0">
-          <div class="truncate text-base font-black sm:text-lg">魔法衣橱</div>
-          <div class="text-xs text-white/70 sm:text-sm">全屏 Unity 模式</div>
-        </div>
-
-        <div class="hidden items-center gap-3 rounded-full bg-white/10 px-3 py-2 sm:flex">
-          <div class="flex items-center gap-1" title="金币">
-            <span>🪙</span>
-            <span class="font-black text-yellow-300">{{ wallet.coins }}</span>
-          </div>
-          <div class="h-4 w-px bg-white/20"></div>
-          <div class="flex items-center gap-1" title="钻石">
-            <span>💎</span>
-            <span class="font-black text-cyan-300">{{ wallet.diamonds }}</span>
-          </div>
-        </div>
-
-        <div class="pointer-events-auto flex items-center gap-2">
-          <button
-            @click="refreshWallet"
-            :disabled="refreshingWallet"
-            class="rounded-full bg-white/15 px-3 py-2 text-xs font-bold text-white transition hover:bg-white/25 disabled:opacity-50 sm:px-4 sm:text-sm"
-          >
-            {{ refreshingWallet ? '同步中...' : '同步钱包' }}
-          </button>
-          <button
-            @click="$emit('close')"
-            class="rounded-full bg-pink-400 px-3 py-2 text-xs font-black text-white transition hover:bg-pink-500 sm:px-4 sm:text-sm"
-          >
-            返回工坊
-          </button>
-        </div>
-      </div>
+    <div v-if="unityInGame" class="pointer-events-none absolute left-0 top-0 z-20 px-3 pt-3 sm:px-4 sm:pt-4" style="padding-top: calc(env(safe-area-inset-top, 0px) + 0.75rem);">
+      <button
+        class="pointer-events-auto inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/15 bg-black/30 text-white shadow-xl backdrop-blur-md transition hover:bg-black/45 active:scale-95"
+        style="opacity: 0.75;"
+        @pointerdown.prevent="onMenuPointerDown"
+        @pointerup.prevent="onMenuPointerUp"
+        @pointercancel.prevent="onMenuPointerCancel"
+        title="短按: 菜单  长按: 返回工坊"
+        aria-label="菜单"
+      >
+        ☰
+      </button>
     </div>
 
-    <div
-      v-if="isMobileMode"
-      class="pointer-events-none absolute inset-x-0 bottom-0 z-30 select-none"
-      style="padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 1rem);"
-    >
-      <div class="mb-2 text-center text-xs font-bold text-white/70">
-        手机模式：左手移动，右手交互
-      </div>
-
-      <div class="flex items-end justify-between px-4">
-        <div class="pointer-events-auto">
-          <div
-            ref="joystickBase"
-            class="mobile-joystick relative h-32 w-32 rounded-full border border-white/20 bg-black/30 backdrop-blur-md"
-            @pointerdown.prevent="startJoystick"
-            @pointermove.prevent="moveJoystick"
-            @pointerup.prevent="endJoystick"
-            @pointercancel.prevent="endJoystick"
-          >
-            <div class="absolute inset-4 rounded-full border border-white/10"></div>
-            <div class="mobile-joystick-thumb absolute left-1/2 top-1/2 h-14 w-14 rounded-full bg-white/80 shadow-xl" :style="joystickThumbStyle"></div>
-          </div>
+    <div class="pointer-events-none absolute left-1/2 top-0 z-20 -translate-x-1/2 px-3 pt-3 sm:px-4 sm:pt-4" style="padding-top: calc(env(safe-area-inset-top, 0px) + 0.75rem);">
+      <div class="pointer-events-auto flex items-center gap-2 rounded-full border border-white/15 bg-black/35 px-3 py-2 text-white shadow-xl backdrop-blur-md">
+        <div class="flex items-center gap-1 text-xs font-black" title="金币">
+          <span>🪙</span>
+          <span class="text-yellow-300">{{ wallet.coins }}</span>
         </div>
-
-        <div class="pointer-events-auto flex flex-col items-end gap-3">
-          <button
-            class="mobile-action-button h-14 min-w-[5rem] rounded-full bg-pink-500/90 px-5 text-sm font-black text-white shadow-xl"
-            @pointerdown.prevent="triggerMobileAction('TriggerMobileInteract')"
-          >
-            交互
-          </button>
-          <div class="flex items-center gap-3">
-            <button
-              class="mobile-action-button h-12 min-w-[4.5rem] rounded-full bg-cyan-500/85 px-4 text-sm font-black text-white shadow-xl"
-              @pointerdown.prevent="triggerMobileAction('TriggerMobileInteractAlternate')"
-            >
-              动作
-            </button>
-            <button
-              class="mobile-action-button h-12 min-w-[4.5rem] rounded-full bg-white/20 px-4 text-sm font-black text-white shadow-xl backdrop-blur"
-              @pointerdown.prevent="triggerMobileAction('TriggerMobilePause')"
-            >
-              暂停
-            </button>
-          </div>
+        <div class="h-4 w-px bg-white/20"></div>
+        <div class="flex items-center gap-1 text-xs font-black" title="钻石">
+          <span>💎</span>
+          <span class="text-cyan-300">{{ wallet.diamonds }}</span>
         </div>
       </div>
     </div>
@@ -116,7 +58,7 @@
 </template>
 
 <script setup>
-import { computed, ref, onMounted, onUnmounted } from 'vue'
+import { computed, ref, onMounted, onUnmounted, onActivated, onDeactivated } from 'vue'
 import { supabase } from '../supabase'
 import { getUnityShellUrl } from '../unity-config'
 
@@ -138,14 +80,9 @@ const wallet = ref({ coins: 0, diamonds: 0 })
 const refreshingWallet = ref(false)
 const isMobileMode = ref(detectMobileMode())
 const unityShellSrc = computed(() => getUnityShellUrl(isMobileMode.value))
-const joystickBase = ref(null)
-const joystickThumbOffset = ref({ x: 0, y: 0 })
-const joystickPointerId = ref(null)
-let mobileModeAnnounced = false
-
-const joystickThumbStyle = computed(() => ({
-  transform: `translate(calc(-50% + ${joystickThumbOffset.value.x}px), calc(-50% + ${joystickThumbOffset.value.y}px))`
-}))
+const unityInGame = ref(false)
+const menuPointerDownAt = ref(0)
+const MENU_LONG_PRESS_MS = 650
 
 const showMessage = (msg) => {
   message.value = msg
@@ -225,21 +162,45 @@ const deductWallet = async (currency, amount) => {
 const unityLoadingError = ref(false)
 const unityFrame = ref(null)
 let unityLoadingTimeout = null
+let previousBodyOverflow = null
 
 const getUnityInstance = () => {
   return unityFrame.value?.contentWindow?.unityInstance || null
 }
 
-const sendUnityMessage = (method, payload = '') => {
+const pauseGame = () => {
   const unityInstance = getUnityInstance()
-  if (!unityInstance) return false
+  if (!unityInstance) {
+    showMessage('游戏还在加载中...')
+    return
+  }
 
-  unityInstance.SendMessage('GameInput', method, payload)
-  return true
+  // Trigger pause via the GameInput object in the Unity scene.
+  unityInstance.SendMessage('GameInput', 'TriggerMobilePause', 'tap')
 }
 
-const syncMobileModeToUnity = () => {
-  sendUnityMessage('SetMobileMode', isMobileMode.value ? '1' : '0')
+const onMenuPointerDown = () => {
+  menuPointerDownAt.value = Date.now()
+}
+
+const onMenuPointerUp = () => {
+  const elapsed = Date.now() - menuPointerDownAt.value
+  menuPointerDownAt.value = 0
+
+  // Short press: open Unity's built-in PAUSED menu.
+  if (elapsed > 0 && elapsed < MENU_LONG_PRESS_MS) {
+    pauseGame()
+    return
+  }
+
+  // Long press: exit back to workshop.
+  if (elapsed >= MENU_LONG_PRESS_MS) {
+    emit('close')
+  }
+}
+
+const onMenuPointerCancel = () => {
+  menuPointerDownAt.value = 0
 }
 
 const syncMoneyToUnity = () => {
@@ -277,79 +238,31 @@ const onUnityIframeLoaded = () => {
   }, 30000)
 }
 
-const resetJoystick = () => {
-  joystickPointerId.value = null
-  joystickThumbOffset.value = { x: 0, y: 0 }
-  sendUnityMessage('SetMobileMove', '0,0')
-}
-
-const updateJoystick = (clientX, clientY) => {
-  if (!joystickBase.value) return
-
-  const rect = joystickBase.value.getBoundingClientRect()
-  const centerX = rect.left + rect.width / 2
-  const centerY = rect.top + rect.height / 2
-  const maxDistance = rect.width * 0.32
-
-  let offsetX = clientX - centerX
-  let offsetY = clientY - centerY
-  const distance = Math.hypot(offsetX, offsetY)
-
-  if (distance > maxDistance && distance > 0) {
-    const scale = maxDistance / distance
-    offsetX *= scale
-    offsetY *= scale
-  }
-
-  joystickThumbOffset.value = {
-    x: Math.round(offsetX),
-    y: Math.round(offsetY)
-  }
-
-  const normalizedX = offsetX / maxDistance
-  const normalizedY = -offsetY / maxDistance
-  sendUnityMessage('SetMobileMove', `${normalizedX.toFixed(3)},${normalizedY.toFixed(3)}`)
-}
-
-const startJoystick = (event) => {
-  if (!isMobileMode.value) return
-
-  joystickPointerId.value = event.pointerId
-  event.currentTarget.setPointerCapture?.(event.pointerId)
-  syncMobileModeToUnity()
-  updateJoystick(event.clientX, event.clientY)
-}
-
-const moveJoystick = (event) => {
-  if (joystickPointerId.value !== event.pointerId) return
-
-  updateJoystick(event.clientX, event.clientY)
-}
-
-const endJoystick = (event) => {
-  if (joystickPointerId.value !== null && joystickPointerId.value !== event.pointerId) return
-
-  event.currentTarget.releasePointerCapture?.(event.pointerId)
-  resetJoystick()
-}
-
-const triggerMobileAction = (method) => {
-  syncMobileModeToUnity()
-  sendUnityMessage(method, 'tap')
-}
-
 const handleUnityMessage = (event) => {
   if (event.source !== unityFrame.value?.contentWindow) return
 
   if (event.data?.type === 'unity-ready') {
     clearTimeout(unityLoadingTimeout)
-    syncMobileModeToUnity()
     syncMoneyToUnity()
+  }
 
-    if (isMobileMode.value && !mobileModeAnnounced) {
-      mobileModeAnnounced = true
-      showMessage('手机触控已启用')
-    }
+  if (event.data?.type === 'unity-exit') {
+    emit('close')
+  }
+
+  if (event.data?.type === 'unity-in-game') {
+    unityInGame.value = event.data?.value === 1 || event.data?.value === true
+  }
+}
+
+const lockBodyScroll = () => {
+  previousBodyOverflow = document.body.style.overflow
+  document.body.style.overflow = 'hidden'
+}
+
+const unlockBodyScroll = () => {
+  if (previousBodyOverflow !== null) {
+    document.body.style.overflow = previousBodyOverflow
   }
 }
 
@@ -383,10 +296,18 @@ onMounted(() => {
   loadWallet()
 })
 
+onActivated(() => {
+  lockBodyScroll()
+})
+
+onDeactivated(() => {
+  unlockBodyScroll()
+})
+
 onUnmounted(() => {
   clearTimeout(unityLoadingTimeout)
   window.removeEventListener('message', handleUnityMessage)
-  resetJoystick()
+  unlockBodyScroll()
   if (window.VueBridge) {
     delete window.VueBridge
   }
@@ -413,15 +334,4 @@ onUnmounted(() => {
   50% { transform: scale(1.1); opacity: 1; }
   100% { transform: scale(1); opacity: 1; }
 }
-
-.mobile-joystick,
-.mobile-action-button {
-  touch-action: none;
-}
-
-.mobile-joystick-thumb {
-  margin-left: -28px;
-  margin-top: -28px;
-}
-
 </style>
