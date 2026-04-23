@@ -40,7 +40,7 @@
         width: 154px;
         height: 130px;
         margin: 0 auto 18px auto;
-        background: url("/unity-game/TemplateData/unity-logo-dark.png") no-repeat center;
+        /* Set at runtime based on the configured unity-game base URL (query param "base"). */
         background-size: contain;
       }
       #unity-progress-bar-empty {
@@ -146,9 +146,17 @@
       const progressText = document.querySelector("#unity-progress-text");
       const warningBanner = document.querySelector("#unity-warning");
       const rotateHint = document.querySelector("#rotate-hint");
+      const unityLogo = document.querySelector("#unity-logo");
       const searchParams = new URLSearchParams(window.location.search);
       const isMobileShell = searchParams.get("mobile") === "1" ||
         /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+
+      const unityBaseRaw = searchParams.get("base") || "/unity-game";
+      const unityBase = unityBaseRaw.replace(/\/+$/, "");
+
+      if (unityLogo) {
+        unityLogo.style.backgroundImage = `url("${unityBase}/TemplateData/unity-logo-dark.png")`;
+      }
 
       // iOS Safari/Chrome can report unstable 100vh due to browser UI bars.
       // Use a CSS variable based on innerHeight for consistent full-screen sizing.
@@ -199,7 +207,7 @@
         console.error(event.reason);
       });
 
-      const buildUrl = "/unity-game/Build";
+      const buildUrl = unityBase + "/Build";
       // Bump this version after each new Unity WebGL build to invalidate old caches.
       const buildVersion = searchParams.get("v") || "2026-04-18-1";
       const buildVersionStorageKey = "unity-shell-build-version";
@@ -208,7 +216,7 @@
       async function resolveUnityBuildFiles() {
         // Unity may export hashed filenames (when "Name Files As Hashes" is enabled).
         // Parse /unity-game/index.html to find the real Build filenames.
-        const indexUrl = withVersion("/unity-game/index.html");
+        const indexUrl = withVersion(unityBase + "/index.html");
         const res = await fetch(indexUrl, { credentials: "same-origin" });
         if (!res.ok) {
           throw new Error("Failed to load unity-game index.html: " + res.status);
@@ -243,7 +251,7 @@
           dataUrl: withVersion(buildUrl + "/" + files.data),
           frameworkUrl: withVersion(buildUrl + "/" + files.framework),
           codeUrl: withVersion(buildUrl + "/" + files.wasm),
-        streamingAssetsUrl: "/unity-game/StreamingAssets",
+        streamingAssetsUrl: unityBase + "/StreamingAssets",
         companyName: "DefaultCompany",
         productName: "Lesson9-" + buildVersion,
         productVersion: buildVersion,

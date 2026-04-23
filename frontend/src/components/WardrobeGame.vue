@@ -14,7 +14,7 @@
       <div class="mb-4 text-6xl">🎮</div>
       <h2 class="mb-2 text-2xl font-bold">Unity 游戏加载失败</h2>
       <p class="max-w-xl text-gray-300">
-        当前会直接加载 <code class="rounded bg-black/40 px-2 py-1">/unity-game/index.html</code>。
+        当前会直接加载 <code class="rounded bg-black/40 px-2 py-1">UNITY_GAME_BASE_URL/index.html</code>。
         如果你刚重新 Build，等资源刷新完成后再试一次。
       </p>
     </div>
