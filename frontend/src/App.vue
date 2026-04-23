@@ -46,7 +46,9 @@ const startUnityWarmup = async () => {
     const urls = await getUnityWarmupUrls()
     for (const url of urls) {
       fetch(url, {
-        credentials: 'same-origin',
+        // Unity assets are hosted on a different origin (HF Space). Keep it CORS-friendly.
+        mode: 'cors',
+        credentials: 'omit',
         cache: 'force-cache',
         signal: unityWarmupController.signal
       }).catch(() => {})

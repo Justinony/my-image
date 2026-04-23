@@ -1,4 +1,5 @@
-export const UNITY_BUILD_VERSION = '2026-04-18-1'
+// Bump this after each Unity WebGL rebuild to invalidate caches (index.html, loader/data/wasm).
+export const UNITY_BUILD_VERSION = '2026-04-23-1'
 
 // Unity static files are too large for Cloudflare Pages (25 MiB per-file limit).
 // Host Unity output (unity-game/) on a separate static host/CDN (e.g. R2 public bucket),
@@ -38,9 +39,31 @@ export const parseUnityIndexHtml = (html) => {
   //   "/<hash>.framework.js(.br|.gz)?"
   //   "/<hash>.wasm(.br|.gz)?"
   const loader = pickFirst(/([0-9a-f]+\.loader\.js)/i, html)
-  const data = pickFirst(/([0-9a-f]+\.data(?:\.(?:br|gz))?)/i, html)
-  const framework = pickFirst(/([0-9a-f]+\.framework\.js(?:\.(?:br|gz))?)/i, html)
-  const wasm = pickFirst(/([0-9a-f]+\.wasm(?:\.(?:br|gz))?)/i, html)
+
+  const pickPrefer = (res) => {
+    for (const re of res) {
+      const v = pickFirst(re, html)
+      if (v) return v
+    }
+    return null
+  }
+
+  // Prefer compressed assets when multiple variants exist.
+  const data = pickPrefer([
+    /([0-9a-f]+\.data\.br)/i,
+    /([0-9a-f]+\.data\.gz)/i,
+    /([0-9a-f]+\.data)/i
+  ])
+  const framework = pickPrefer([
+    /([0-9a-f]+\.framework\.js\.br)/i,
+    /([0-9a-f]+\.framework\.js\.gz)/i,
+    /([0-9a-f]+\.framework\.js)/i
+  ])
+  const wasm = pickPrefer([
+    /([0-9a-f]+\.wasm\.br)/i,
+    /([0-9a-f]+\.wasm\.gz)/i,
+    /([0-9a-f]+\.wasm)/i
+  ])
 
   if (!loader || !data || !framework || !wasm) {
     return null
