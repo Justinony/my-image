@@ -232,10 +232,14 @@
         //   buildUrl + "/<hash>.loader.js"
         //   buildUrl + "/<hash>.data.br"
         // ...so match filenames anywhere (don't rely on escaping mistakes).
+        // Support builds with Brotli/Gzip/no-compression:
+        //   <hash>.data[.br|.gz]
+        //   <hash>.framework.js[.br|.gz]
+        //   <hash>.wasm[.br|.gz]
         const loader = pick(/([0-9a-f]+\.loader\.js)/i);
-        const data = pick(/([0-9a-f]+\.data\.br)/i);
-        const framework = pick(/([0-9a-f]+\.framework\.js\.br)/i);
-        const wasm = pick(/([0-9a-f]+\.wasm\.br)/i);
+        const data = pick(/([0-9a-f]+\.data(?:\.(?:br|gz))?)/i);
+        const framework = pick(/([0-9a-f]+\.framework\.js(?:\.(?:br|gz))?)/i);
+        const wasm = pick(/([0-9a-f]+\.wasm(?:\.(?:br|gz))?)/i);
 
         if (!loader || !data || !framework || !wasm) {
           throw new Error("Failed to parse Unity build filenames from index.html");
@@ -336,7 +340,7 @@
           loaderUrl = built.loaderUrl;
           config = built.config;
         } catch (e) {
-          unityShowBanner("Unity 配置解析失败，请重新 Build 或检查 unity-game/index.html", "error");
+          unityShowBanner("Unity 配置解析失败：无法从 index.html 解析 Build 文件名（检查 Build 是否为 .br/.gz/无压缩，并确保目录完整）", "error");
           console.error(e);
           return;
         }

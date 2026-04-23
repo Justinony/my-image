@@ -33,11 +33,14 @@ const pickFirst = (re, text) => {
 
 export const parseUnityIndexHtml = (html) => {
   // Unity index.html contains filenames under Build/, usually:
-  //   "/<hash>.loader.js", "/<hash>.data.br", "/<hash>.framework.js.br", "/<hash>.wasm.br"
+  //   "/<hash>.loader.js"
+  //   "/<hash>.data(.br|.gz)?"
+  //   "/<hash>.framework.js(.br|.gz)?"
+  //   "/<hash>.wasm(.br|.gz)?"
   const loader = pickFirst(/([0-9a-f]+\.loader\.js)/i, html)
-  const data = pickFirst(/([0-9a-f]+\.data\.br)/i, html)
-  const framework = pickFirst(/([0-9a-f]+\.framework\.js\.br)/i, html)
-  const wasm = pickFirst(/([0-9a-f]+\.wasm\.br)/i, html)
+  const data = pickFirst(/([0-9a-f]+\.data(?:\.(?:br|gz))?)/i, html)
+  const framework = pickFirst(/([0-9a-f]+\.framework\.js(?:\.(?:br|gz))?)/i, html)
+  const wasm = pickFirst(/([0-9a-f]+\.wasm(?:\.(?:br|gz))?)/i, html)
 
   if (!loader || !data || !framework || !wasm) {
     return null
