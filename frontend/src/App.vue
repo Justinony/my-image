@@ -109,6 +109,13 @@ const handleGlobalLogin = (username) => {
   scheduleUnityWarmup()
 }
 
+const isMobileDevice = () => {
+  const ua = navigator.userAgent || ''
+  const isTouch = 'maxTouchPoints' in navigator && navigator.maxTouchPoints > 0
+  const isSmallScreen = Math.min(window.innerWidth || 0, window.innerHeight || 0) <= 1024
+  return /Android|iPhone|iPad|iPod/i.test(ua) || (isTouch && isSmallScreen)
+}
+
 const requestFullscreen = async () => {
   const el = document.documentElement
   const anyEl = /** @type {any} */ (el)
@@ -197,7 +204,9 @@ const openWardrobe = () => {
   // This avoids a bad UX where the browser enters fullscreen but the game overlay is delayed or blocked.
   startUnityWarmup()
   showWardrobeGame.value = true
-  requestFullscreen()
+  if (isMobileDevice()) {
+    requestFullscreen()
+  }
 }
 
 const handleWardrobeClose = () => {
