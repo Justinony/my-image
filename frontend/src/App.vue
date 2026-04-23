@@ -118,9 +118,33 @@ const isMobileDevice = () => {
   return /Android|iPhone|iPad|iPod/i.test(ua) || (isTouch && isSmallScreen)
 }
 
+const isInAppBrowser = () => {
+  const ua = (navigator.userAgent || '').toLowerCase()
+  return ua.includes('micromessenger') || ua.includes('qq/') || ua.includes('weibo') || ua.includes('dingtalk')
+}
+
+const isStandaloneMode = () => {
+  // iOS Safari: navigator.standalone; others: display-mode media query
+  const anyNav = /** @type {any} */ (navigator)
+  return Boolean(anyNav.standalone) || (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches)
+}
+
+const showFullscreenGuide = ref(false)
+const fullscreenGuideText = ref('')
+const closeFullscreenGuide = () => {
+  showFullscreenGuide.value = false
+  fullscreenGuideText.value = ''
+}
+const retryFullscreen = () => {
+  requestFullscreen().then((ok) => {
+    if (ok) closeFullscreenGuide()
+  })
+}
+
 const requestFullscreen = async () => {
   const el = document.documentElement
   const anyEl = /** @type {any} */ (el)
+  const anyDoc = /** @type {any} */ (document)
 
   if (document.fullscreenElement) return true
 
@@ -133,7 +157,8 @@ const requestFullscreen = async () => {
           await screen.orientation.lock('landscape')
         }
       } catch (e) {}
-      return true
+      // Some browsers resolve the promise but still don't enter fullscreen (embedded browsers).
+      return Boolean(document.fullscreenElement || anyDoc.webkitFullscreenElement)
     }
     if (anyEl.webkitRequestFullscreen) {
       anyEl.webkitRequestFullscreen()
@@ -142,7 +167,7 @@ const requestFullscreen = async () => {
           await screen.orientation.lock('landscape')
         }
       } catch (e) {}
-      return true
+      return Boolean(document.fullscreenElement || anyDoc.webkitFullscreenElement)
     }
     if (anyEl.mozRequestFullScreen) {
       anyEl.mozRequestFullScreen()
@@ -207,7 +232,24 @@ const openWardrobe = () => {
   startUnityWarmup()
   showWardrobeGame.value = true
   if (isMobileDevice()) {
-    requestFullscreen()
+    // Best-effort: on Android/Chrome this can enter fullscreen + lock landscape.
+    // On iOS Safari / in-app browsers (WeChat), fullscreen/rotation lock is restricted.
+    requestFullscreen().then((ok) => {
+      if (ok) return
+
+      // Show a clear guide instead of leaving users confused by the browser header.
+      // Installing as PWA ("Add to Home Screen") is the closest to a native-game experience on iOS.
+      if (isStandaloneMode()) return
+
+      showFullscreenGuide.value = true
+      if (isInAppBrowser()) {
+        fullscreenGuideText.value =
+          '当前是在应用内浏览器里打开，通常无法进入真正全屏/横屏。\n请点击右上角“…”选择“在浏览器打开”，或用 Safari 打开后“添加到主屏幕”。'
+      } else {
+        fullscreenGuideText.value =
+          'iOS 浏览器无法强制隐藏顶部地址栏/强制横屏。\n想要像手游一样无顶部栏：用 Safari 打开后点“分享” → “添加到主屏幕”，再从主屏幕进入。'
+      }
+    })
   }
 }
 
@@ -719,6 +761,16 @@ onUnmounted(() => {
       @close="showAuthModal = false" 
       @login-success="handleGlobalLogin" 
     />
+    <div v-if="showFullscreenGuide" class="fixed inset-0 z-[220] flex items-center justify-center bg-black/70 px-6 text-white">
+      <div class="w-full max-w-md rounded-2xl border border-white/15 bg-black/60 p-5 shadow-2xl backdrop-blur">
+        <div class="mb-2 text-lg font-black">想要像手游一样全屏横屏</div>
+        <div class="whitespace-pre-line text-sm text-white/85">{{ fullscreenGuideText }}</div>
+        <div class="mt-4 flex items-center justify-end gap-2">
+          <button class="rounded-full border border-white/20 bg-white/10 px-4 py-2 text-sm font-bold" @click="retryFullscreen">再试一次全屏</button>
+          <button class="rounded-full bg-white px-4 py-2 text-sm font-black text-black" @click="closeFullscreenGuide">知道了</button>
+        </div>
+      </div>
+    </div>
     <KeepAlive>
       <WardrobeGame 
         v-if="showWardrobeGame" 

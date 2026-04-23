@@ -150,6 +150,8 @@
       const searchParams = new URLSearchParams(window.location.search);
       const isMobileShell = searchParams.get("mobile") === "1" ||
         /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+      const ua = navigator.userAgent || "";
+      const isIOS = /iPhone|iPad|iPod/i.test(ua);
 
       const unityBaseRaw = searchParams.get("base") || "/unity-game";
       const unityBase = unityBaseRaw.replace(/\/+$/, "");
@@ -173,6 +175,11 @@
       function syncRotateHint() {
         if (!rotateHint) return;
         if (!isMobileShell) {
+          rotateHint.style.display = "none";
+          return;
+        }
+        // Don't block the screen on iOS/in-app browsers; iOS cannot be forced into landscape.
+        if (isIOS) {
           rotateHint.style.display = "none";
           return;
         }

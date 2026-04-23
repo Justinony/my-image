@@ -1,0 +1,17 @@
+{
+  "name": "zz 小宝宝专属工坊",
+  "short_name": "zz 工坊",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#000000",
+  "theme_color": "#000000",
+  "orientation": "landscape",
+  "icons": [
+    {
+      "src": "/pwa-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ]
+}
+
